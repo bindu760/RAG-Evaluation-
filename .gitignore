@@ -1,0 +1,16 @@
+
+.venv/
+venv/
+.env
+__pycache__/
+*.pyc
+evaluation/results/*
+faiss_index/
+.ipynb_checkpoints/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Ignore uploaded PDF documents
+data/documents/*
+!data/documents/.gitkeep
