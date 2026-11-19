@@ -1,20 +1,18 @@
 
+from langchain_core.documents import Document
 import sys
 from pathlib import Path
 
-# Add src folder to Python path
-project_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(project_root / "src"))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
-from langchain_core.documents import Document
+from src.document_chunker import split_documents
+from src.embedding_model import get_embedding_model
+from src.vector_store import create_vector_store
+from src.llm_model import get_llm
+from src.rag_chain import get_rag_answer
 
-from document_chunker import split_documents
-from embedding_model import get_embedding_model
-from vector_store import create_vector_store
-from llm_model import get_llm
-from rag_chain import get_rag_answer
-
-from generation_dataset import generation_dataset
+from evaluation.generation_dataset import generation_dataset
 
 
 # 1. Create sample documents
@@ -38,55 +36,70 @@ documents = [
 ]
 
 
-# 2. Split documents into chunks
+# 2. Create chunks
 chunks = split_documents(documents)
 
 
-# 3. Initialize embedding model and FAISS
+# 3. Initialize embedding model
 embedding_model = get_embedding_model()
 
+
+# 4. Create FAISS vector store
 vector_store = create_vector_store(
     chunks,
     embedding_model
 )
 
 
-# 4. Initialize Groq LLM
+# 5. Initialize LLM
 llm = get_llm()
 
 
-# 5. Generate answers and collect evaluation data
-evaluation_data = []
+# 6. Collect generation and performance data
+generation_data = []
 
 for item in generation_dataset:
 
     question = item["question"]
+    ground_truth = item["ground_truth"]
 
     result = get_rag_answer(
-        question=question,
-        vector_store=vector_store,
-        llm=llm,
+        question,
+        vector_store,
+        llm,
         k=3
     )
+
+    answer = result["answer"]
 
     contexts = [
         doc.page_content
         for doc in result["retrieved_documents"]
     ]
 
-    evaluation_data.append({
+    performance_data = {
         "question": question,
-        "answer": result["answer"],
+        "answer": answer,
         "contexts": contexts,
-        "ground_truth": item["ground_truth"]
-    })
+        "ground_truth": ground_truth,
+        "latency": result["latency"],
+        "input_tokens": result["input_tokens"],
+        "output_tokens": result["output_tokens"],
+        "total_tokens": result["total_tokens"]
+    }
+
+    generation_data.append(performance_data)
 
     print("\nQuestion:", question)
-    print("Generated Answer:", result["answer"])
+    print("Generated Answer:", answer)
+    print("Latency:", round(result["latency"], 3), "seconds")
+    print("Input Tokens:", result["input_tokens"])
+    print("Output Tokens:", result["output_tokens"])
+    print("Total Tokens:", result["total_tokens"])
 
 
-# 6. Display collected evaluation data
-print("\n========== GENERATION DATA ==========")
+# 7. Display complete evaluation data
+print("\n========== GENERATION & PERFORMANCE DATA ==========")
 
-for item in evaluation_data:
-    print(item)
+for data in generation_data:
+    print(data)
